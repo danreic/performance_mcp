@@ -31,12 +31,16 @@ class GitTools:
         response = requests.get(url, headers={"PRIVATE-TOKEN": self.gitlab_token})
         return response.json()["sha"]
 
-    def get_git_llfp(self, commit_sha1, commit_sha2=None):
+    def get_commits_list(self, commit_sha1, commit_sha2=None):
         if commit_sha2 is None:
-            return self.repo.git.log("--first-parent", "--pretty=format:%H", commit_sha1)
-        return self.repo.git.log("--first-parent", "--pretty=format:%H", f"{commit_sha1}..{commit_sha2}")
+            commits_list = self.repo.git.log("--first-parent", "--pretty=format:%H", commit_sha1).split("\n")
+        else:   
+            commits_list = self.repo.git.log("--first-parent", "--pretty=format:%H", f"{commit_sha1}..{commit_sha2}").split("\n")
+        commits_list.reverse()
+        return commits_list
 
-    def get_git_llfp_more_data(self, commit_sha1, commit_sha2=None):
+    def get_git_llfp(self, commit_sha1, commit_sha2=None):
         if commit_sha2 is None:
             return self.repo.git.llfp(commit_sha1)
         return self.repo.git.llfp(f"{commit_sha1}..{commit_sha2}")
+
