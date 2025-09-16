@@ -55,6 +55,3 @@ class PostgresDB:
         if self.conn:
             self.conn.close()
             print("Connection closed")
-
-
-DB = PostgresDB()
