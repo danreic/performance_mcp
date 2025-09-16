@@ -1,0 +1,9 @@
+[project]
+name = "performace-mcp"
+version = "0.1.0"
+description = "MCP for automatic perfomance testing workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.12.3",
+]
