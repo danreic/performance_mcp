@@ -77,23 +77,23 @@ def get_commits_diff(commit_hash1: str, commit_hash2: str, ctx: Context) -> str:
     return git_tools_instance.get_commits_diff(commit_hash1, commit_hash2)
 
 @mcp.tool
-def get_git_llfp(commit_hash1: str, commit_hash2: str = None, ctx: Context = None) -> str:
+def get_commits_list(commit_hash1: str, commit_hash2: str, ctx: Context = None) -> list:
     """
-    Gets the git llfp (git ll with only first parent commits) between two commit hashes
+    Gets the git commits list between two commit hashes (git ll with only first parent commits) between two commit hashes
     Gets Only the commit hashes
 
     Args:
         commit_hash1: The first commit hash.
-        commit_hash2: The second commit hash - Optional
+        commit_hash2: The second commit hash.
 
     Returns:
-        The git llfp between the two commit hashes or the git llfp of the commit hash if commit_hash2 is not provided.
+        The git commits list between the two commit hashes.
     """
     git_tools_instance = ctx.request_context.lifespan_context.git_tools
-    return git_tools_instance.get_git_llfp(commit_hash1, commit_hash2)
+    return git_tools_instance.get_commits_list(commit_hash1, commit_hash2)
 
 @mcp.tool
-def get_git_llfp_more_data(commit_hash1: str, commit_hash2: str = None, ctx: Context = None) -> str:
+def get_git_llfp(commit_hash1: str, commit_hash2: str = None, ctx: Context = None) -> list:
     """
     Gets the git llfp (git ll with only first parent commits) between two commit hashes
     Gets the commit hashes and the commit messages
@@ -103,9 +103,10 @@ def get_git_llfp_more_data(commit_hash1: str, commit_hash2: str = None, ctx: Con
 
     Returns:
         The git llfp between the two commit hashes or the git llfp of the commit hash if commit_hash2 is not provided.
+        List of commit hashes and the commit messages
     """
     git_tools_instance = ctx.request_context.lifespan_context.git_tools
-    return git_tools_instance.get_git_llfp_more_data(commit_hash1, commit_hash2)
+    return git_tools_instance.get_git_llfp(commit_hash1, commit_hash2).split("\n")
 
 
 if __name__ == "__main__":
