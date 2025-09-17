@@ -83,20 +83,20 @@ def get_commits_diff(commit_hash1: str, commit_hash2: str = None, ctx: Context =
         return diff
 
 @mcp.tool
-def get_git_llfp(commit_hash1: str, commit_hash2: str = None, ctx: Context = None) -> str:
+def get_commits_list(commit_hash1: str, commit_hash2: str, ctx: Context = None) -> list:
     """
-    Gets the git llfp (git ll with only first parent commits) between two commit hashes
+    Gets the git commits list between two commit hashes (git ll with only first parent commits) between two commit hashes
     Gets Only the commit hashes
 
     Args:
         commit_hash1: The first commit hash.
-        commit_hash2: The second commit hash - Optional
+        commit_hash2: The second commit hash.
 
     Returns:
-        The git llfp between the two commit hashes or the git llfp of the commit hash if commit_hash2 is not provided.
+        The git commits list between the two commit hashes.
     """
     git_tools_instance = ctx.request_context.lifespan_context.git_tools
-    return git_tools_instance.get_git_llfp(commit_hash1, commit_hash2)
+    return git_tools_instance.get_commits_list(commit_hash1, commit_hash2)
 
 
 @mcp.tool
@@ -121,10 +121,14 @@ def get_commit_diff_overview(commit_hash1: str, commit_hash2: str, ctx: Context 
 @mcp.tool
 def get_result_from_db(commit_hash1: str, commit_hash2: str = None, ctx: Context = None) -> str:
     """
-    Gets the result from the database
+    Gets the result from the database from all the commits between two commits or only one commit
     Args:
         commit_hash1: The first commit hash.
         commit_hash2: The  commit hash - Optional
+        
+    Returns:
+        Database results of the requested commits
+
     """
     db_instance = ctx.request_context.lifespan_context.db
     git_tools_instance = ctx.request_context.lifespan_context.git_tools
@@ -133,6 +137,7 @@ def get_result_from_db(commit_hash1: str, commit_hash2: str = None, ctx: Context
     else:
         commits = [commit_hash1]
     results = db_instance.fetch_query("SELECT * FROM vperf WHERE commit_hash LIKE ANY (ARRAY %s)" % [f"%{commit_hash[:8]}%" for commit_hash in commits])
+
 
     return results
 

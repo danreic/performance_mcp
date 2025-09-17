@@ -38,10 +38,13 @@ class GitTools:
 
     def get_commits_list(self, commit_sha1, commit_sha2=None):
         if commit_sha2 is None:
-            return self.repo.git.log("--first-parent", "--pretty=format:%H", commit_sha1)
-        return self.repo.git.log("--first-parent", "--pretty=format:%H", f"{commit_sha1}..{commit_sha2}")
+            commits_list = self.repo.git.log("--first-parent", "--pretty=format:%H", commit_sha1).split("\n")
+        else:   
+            commits_list = self.repo.git.log("--first-parent", "--pretty=format:%H", f"{commit_sha1}..{commit_sha2}").split("\n")
+        commits_list.reverse()
+        return commits_list
 
-    def get_git_llfp_more_data(self, commit_sha1, commit_sha2=None):
+    def get_git_llfp(self, commit_sha1, commit_sha2=None):
         if commit_sha2 is None:
             return self.repo.git.llfp(commit_sha1)
         return self.repo.git.llfp(f"{commit_sha1}..{commit_sha2}", "--no-merges", "src")
@@ -49,10 +52,3 @@ class GitTools:
     def get_commit_diff_overview(self, commit_sha1, commit_sha2):
         return self.repo.git.log("--oneline", "--name-status", f"{commit_sha1}..{commit_sha2}", "--no-merges", "src")
 
-
-# from db_utils import PostgresDB
-
-# git_tools = GitTools()
-# db = PostgresDB()
-# print(git_tools.get_commits_list('79330c560090','0ad6667b3ab9'))
-# print(db.fetch_query("SELECT * FROM vperf WHERE commit_hash LIKE ANY (ARRAY %s)" % [f"%{commit_hash}%" for commit_hash in git_tools.get_commits_list('79330c560090','0ad6667b3ab9')]))
