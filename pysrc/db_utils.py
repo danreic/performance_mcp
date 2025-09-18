@@ -10,7 +10,6 @@ class PostgresDB:
         self.dbname = os.getenv("DB_NAME")
         self.user = os.getenv("DB_USER")
         self.password = os.getenv("DB_PASSWORD")
-        self.connect()
 
     def connect(self):
         try:
@@ -55,3 +54,15 @@ class PostgresDB:
         if self.conn:
             self.conn.close()
             print("Connection closed")
+
+    def fetch_test_data_by_uniq_id(self, uniq_id, table='vperf'):
+        """
+        Fetches test data from the database using the Uniq ID.
+        """
+
+        job_data = self.fetch_query("select date,build,test_name,bw,iops,latency,cluster,uniq from %s where uniq=%s;" % (table, uniq_id))
+        if job_data:
+            return job_data
+        else:
+            print(f"No data found for Uniq ID: {uniq_id}")
+            return None

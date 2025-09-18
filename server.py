@@ -1,14 +1,13 @@
 from fastmcp import FastMCP, Context
-from pysrc.jenkins import get_run_uniq
-from pysrc import git_tools
 from typing import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from pysrc import db_utils
+from pysrc import db_utils, jenkins, git_tools
 @dataclass
 class AppResources:
     git_tools: git_tools.GitTools
     db: db_utils.PostgresDB
+    jenkins: jenkins.Jenkins
 
 
 @asynccontextmanager
@@ -18,8 +17,10 @@ async def app_lifespan(mcp_Server: FastMCP) -> AsyncIterator[AppResources]:
     """
     git_tools_instance = git_tools.GitTools()
     db_instance = db_utils.PostgresDB()
+    db_instance.connect()
+    jenkins_instance = jenkins.Jenkins()
     
-    yield AppResources(git_tools=git_tools_instance, db=db_instance)
+    yield AppResources(git_tools=git_tools_instance, db=db_instance, jenkins=jenkins_instance)
 
     db_instance.close()
 
@@ -27,7 +28,7 @@ async def app_lifespan(mcp_Server: FastMCP) -> AsyncIterator[AppResources]:
 mcp = FastMCP(name="Performace MCP", lifespan=app_lifespan)
 
 @mcp.tool
-async def get_uniq_from_url(run_url: str) -> dict:
+async def get_uniq_from_url(run_url: str, ctx: Context) -> str:
     """
     Gets the uniq ID of a job from its jenkins URL
 
@@ -38,14 +39,40 @@ async def get_uniq_from_url(run_url: str) -> dict:
         The uniq ID of the job.
         with additional information from the jenkins job
     """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
     if not isinstance(run_url, str) or not run_url.strip():
         raise ValueError("Run URL must be a non-empty string.")
 
     try:
-        response = get_run_uniq(run_url)[0]
+        response = jenkins_instance.get_job_uniq_id(run_url)[1]
         return response
     except Exception as e:
         return {"error": str(e)}
+
+@mcp.tool
+async def get_job_reults_from_url(run_url: str, ctx: Context) -> dict:
+    """
+    Gets the job results from a jenkins URL
+    Args:
+        run_url: The URL of the jenkins job.
+
+    Returns:
+        The job results from the jenkins job in a dictionary
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    db_instance = ctx.request_context.lifespan_context.db
+    try:
+        rc, uniq_id = jenkins_instance.get_job_uniq_id(run_url)
+    except Exception as e:
+        return {"error": str(e)}
+    if rc != 200:
+        return {"error": "Failed to retrieve Uniq ID from Jenkins run URL."}
+    else:
+        raw_data = db_instance.fetch_test_data_by_uniq_id(uniq_id)
+        if raw_data is None:
+            return {"error": "No data found for Uniq ID."}
+        else:
+            return raw_data
 
 @mcp.tool
 async def get_commit_hash_from_pipeline_id(pipeline_id: int, ctx: Context) -> str:
