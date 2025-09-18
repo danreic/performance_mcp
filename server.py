@@ -2,12 +2,12 @@ from fastmcp import FastMCP, Context
 from typing import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from pysrc import db_utils, jenkins, git_tools
+from pysrc import db_utils, jenkins, sheets_utils
 @dataclass
 class AppResources:
-    git_tools: git_tools.GitTools
     db: db_utils.PostgresDB
     jenkins: jenkins.Jenkins
+    sheets: sheets_utils.GoogleSheetsClient
 
 
 @asynccontextmanager
@@ -15,12 +15,20 @@ async def app_lifespan(mcp_Server: FastMCP) -> AsyncIterator[AppResources]:
     """
     Manages the lifecycle of the mcp server.
     """
-    git_tools_instance = git_tools.GitTools()
     db_instance = db_utils.PostgresDB()
     db_instance.connect()
     jenkins_instance = jenkins.Jenkins()
     
-    yield AppResources(git_tools=git_tools_instance, db=db_instance, jenkins=jenkins_instance)
+    # Initialize GoogleSheetsClient with error handling
+    try:
+        sheets_instance = sheets_utils.GoogleSheetsClient()
+        print("Google Sheets client initialized successfully")
+    except Exception as e:
+        print(f"Google Sheets client initialization failed: {e}")
+        # Create a dummy object that will help with error reporting
+        sheets_instance = f"Google Sheets initialization error: {str(e)}"
+    
+    yield AppResources(db=db_instance, jenkins=jenkins_instance, sheets=sheets_instance)
 
     db_instance.close()
 
@@ -166,6 +174,7 @@ def get_result_from_db(commit_hash1: str, commit_hash2: str = None, ctx: Context
     results = db_instance.fetch_query("SELECT * FROM vperf WHERE commit_hash LIKE ANY (ARRAY %s)" % [f"%{commit_hash[:8]}%" for commit_hash in commits])
     return results
 
+
 @mcp.tool
 def trigger_job(job_name: str, params: dict, ctx: Context = None) -> str:
     """
@@ -195,6 +204,59 @@ def trigger_job(job_name: str, params: dict, ctx: Context = None) -> str:
         return "Job triggered successfully"
     else:
         return f"Failed to trigger job: {response.status_code} {response.text}"
+
+
+@mcp.tool
+def extract_google_sheet_data(
+        url_or_spreadsheet_id: str,
+        range_name: str = "A:Z",
+        sheet_name: str = None,
+        ctx: Context = None
+) -> dict:
+    """
+    Extract data from a Google Sheet with flexible range and sheet selection.
+    Now supports both URLs and spreadsheet IDs.
+
+    Args:
+        url_or_spreadsheet_id: Complete Google Sheets URL or just the spreadsheet ID
+        range_name: Cell range to extract (default: "A:Z")
+        sheet_name: Name of specific sheet/tab (optional, ignored if URL contains gid)
+
+    Returns:
+        Dictionary containing extracted data with headers, rows, and metadata
+
+    Examples:
+        # Extract data using complete URL (recommended - includes specific sheet)
+        extract_google_sheet_data("https://docs.google.com/spreadsheets/d/1S7-Uryb.../edit#gid=123456")
+
+        # Extract data using spreadsheet ID (backward compatibility)
+        extract_google_sheet_data("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
+
+        # Extract specific range using URL
+        extract_google_sheet_data("https://docs.google.com/spreadsheets/d/1S7-Uryb.../edit#gid=123", "A1:E100")
+    """
+
+    sheets_instance = ctx.request_context.lifespan_context.sheets
+    # Check if GoogleSheetsClient initialization failed
+    if isinstance(sheets_instance, str):
+        return {
+            "success": False,
+            "error": sheets_instance
+        }
+
+    try:
+        # Check if input is a URL or spreadsheet ID
+        if url_or_spreadsheet_id.startswith('https://docs.google.com/spreadsheets/'):
+            # It's a URL - use the new URL-based method
+            return sheets_instance.extract_sheet_data_from_url(url_or_spreadsheet_id, range_name)
+        else:
+            # It's a spreadsheet ID - use the old method for backward compatibility
+            return sheets_instance.extract_sheet_data(url_or_spreadsheet_id, range_name, sheet_name)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 if __name__ == "__main__":
     mcp.run()
