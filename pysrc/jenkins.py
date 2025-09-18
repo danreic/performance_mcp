@@ -9,9 +9,16 @@ class Jenkins:
     def __init__(self):
         self.JENKINS_API_TOKEN = os.getenv("JENKINS_API_TOKEN")
         self.USERNAME = os.getenv("JENKINS_USERNAME")
+        self.JENKINS_URL = os.getenv("JENKINS_URL")
+        self.JENKINS_PORT = os.getenv("JENKINS_PORT", "8080")
     
     def get_request(self, url, **params):
-        response = requests.get(url, auth=(self.USERNAME, self.JENKINS_API_TOKEN), **params)
+        response = requests.get(url, auth=(self.USERNAME, self.JENKINS_API_TOKEN), data=params)
+        response.raise_for_status()
+        return response
+
+    def post_request(self, url, params):
+        response = requests.post(url, auth=(self.USERNAME, self.JENKINS_API_TOKEN), data=params)
         response.raise_for_status()
         return response
 
@@ -20,7 +27,7 @@ class Jenkins:
         Fetches the test finish status from a Jenkins job URL.
         """
 
-        url = parse_jenkins_url(jenkins_run_url)
+        url = parse_jenkins_url_for_build(jenkins_run_url)
         response = self.get_request(url)
 
         # Split into lines and take last 10
@@ -38,7 +45,7 @@ class Jenkins:
         Extracts the job name from a Jenkins job URL.
         """
 
-        url = parse_jenkins_url(url, json=True)
+        url = parse_jenkins_url_for_build(url, json=True)
         response = self.get_request(url)
         data = response.json()
 
@@ -61,7 +68,7 @@ class Jenkins:
         return protocol, test_suite, cluster
 
     def get_job_uniq_id(self, jenkins_run_url):
-        url = parse_jenkins_url(jenkins_run_url)
+        url = parse_jenkins_url_for_build(jenkins_run_url)
         response = self.get_request(url)
         uniq_id = None
 
@@ -82,6 +89,11 @@ class Jenkins:
                 print("No Uniq ID found in the console log.")
         return response.status_code, uniq_id
 
+    def trigger_job(self, job_name="run_tests_vperfv2", params=None):
+        url = f"{self.JENKINS_URL}:{self.JENKINS_PORT}/job/{job_name}/buildWithParameters"
+        response = self.post_request(url, params)
+        return response
+
 
 def extract_test_suite_from_path(path):
     try:
@@ -95,7 +107,7 @@ def extract_test_suite_from_path(path):
 
 
 
-def parse_jenkins_url(url,json=False):
+def parse_jenkins_url_for_build(url,json=False):
     """
     Extracts Jenkins base URL, job name, and build number from a Jenkins job URL.
     """
@@ -108,7 +120,6 @@ def parse_jenkins_url(url,json=False):
 
     jenkins_url, job_name, build_number = match.groups()
 
-    # print(f"Jenkins URL: {jenkins_url}, Job Name: {job_name}, Build Number: {build_number}")
 
     def url_join(*parts):
         return "/".join(part.strip("/") for part in parts)
@@ -119,15 +130,8 @@ def parse_jenkins_url(url,json=False):
     return url_join(jenkins_url, "job", job_name, str(build_number), "consoleText")
 
 
-
 def validate_run_url(url):
     if not isinstance(url, str):
         return None, "Run URL must be a string."
     return url, "Run URL is valid."
-
-
-
-
-
-
 

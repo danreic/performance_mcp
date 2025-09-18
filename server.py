@@ -164,9 +164,37 @@ def get_result_from_db(commit_hash1: str, commit_hash2: str = None, ctx: Context
     else:
         commits = [commit_hash1]
     results = db_instance.fetch_query("SELECT * FROM vperf WHERE commit_hash LIKE ANY (ARRAY %s)" % [f"%{commit_hash[:8]}%" for commit_hash in commits])
-
-
     return results
+
+@mcp.tool
+def trigger_job(job_name: str, params: dict, ctx: Context = None) -> str:
+    """
+    Triggers a job in jenkins
+    Args:
+        job_name: The name of the job to trigger.
+        params: The parameters to pass to the job, example:
+        {
+            'pipeline': '1815451',
+            'cluster_label': 'vast1206-kfs',
+            'slash_filter': 'test_perf_block_agoda_8k_single_host_multiple_volumes_mixload',
+            'install_flags': '--enable-encryption --enable-similarity --vsettings USE_FLASH_WB=false',
+            'tests_file': 'other',
+            'tests_path': 'pysrc/tests/performance/perf_block_tests.py',
+            'rebuild_on_failure': 'true'
+        }
+
+    Returns:
+        A message indicating if the job was triggered successfully or not
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    try:
+        response = jenkins_instance.trigger_job(job_name, params)
+    except Exception as e:
+        return f"Failed to trigger job: {str(e)}"
+    if response.ok:
+        return "Job triggered successfully"
+    else:
+        return f"Failed to trigger job: {response.status_code} {response.text}"
 
 if __name__ == "__main__":
     mcp.run()
