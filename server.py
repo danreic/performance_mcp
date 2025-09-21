@@ -207,6 +207,24 @@ def trigger_job(job_name: str, params: dict, ctx: Context = None) -> str:
     else:
         return f"Failed to trigger job: {response.status_code} {response.text}"
 
+@mcp.tool
+def get_jobs_from_cluster(cluster_label: str, ctx: Context = None) -> list:
+    """
+    Gets the latest jobs from jenkins that ran on a certain cluster
+    Args:
+        cluster_label: The label of the cluster.
+
+    Returns:
+        The jobs from jenkins that ran on the cluster.
+        List of jobs with the job name and the build number
+        Empty list if no jobs found
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    jobs = jenkins_instance.get_jobs_from_cluster(cluster_label)
+    if jobs:
+        return jobs
+    else:
+        return []
 
 @mcp.tool
 def extract_google_sheet_data(
