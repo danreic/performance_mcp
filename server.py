@@ -227,6 +227,62 @@ def get_jobs_from_cluster(cluster_label: str, ctx: Context = None) -> list:
         return []
 
 @mcp.tool
+def get_jobs_params(job_name: str, build_number: str, ctx: Context = None) -> dict:
+    """
+    Gets the parameters of a job from jenkins
+    Args:
+        job_name: The name of the job.
+        build_number: The number of the build.
+
+    Returns:
+        The parameters of the job.
+        Dictionary with the parameters
+        error message if no parameters found
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    params = jenkins_instance.get_jobs_params(job_name, build_number)
+    if params:
+        return params
+    else:
+        return {"error": "No parameters found for the job"}
+
+
+@mcp.tool
+def get_running_jobs(ctx: Context = None) -> dict:
+    """
+    Gets the running jobs from jenkins
+
+    Returns:
+        The running jobs from jenkins.
+        List of jobs with the job name and the build number
+        Empty list if no jobs found
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    jobs = jenkins_instance.get_running_jobs()
+    if jobs:
+        return jobs
+    else:
+        return {"error": "No running jobs found"}
+
+@mcp.tool
+def abort_jenkins_job(job_name: str, build_number: str, ctx: Context = None) -> str:
+    """
+    Aborts a job in jenkins 
+    Args:
+        job_name: The name of the job to abort.
+        build_number: The number of the build to abort.
+
+    Returns:
+        A message indicating if the job was aborted successfully or not
+    """
+    jenkins_instance = ctx.request_context.lifespan_context.jenkins
+    response = jenkins_instance.abort_jenkins_job(job_name, build_number)
+    if response.ok:
+        return "Job aborted successfully"
+    else:
+        return f"Failed to abort job: {response.status_code} {response.text}"   
+
+@mcp.tool
 def extract_google_sheet_data(
         url_or_spreadsheet_id: str,
         range_name: str = "A:Z",
