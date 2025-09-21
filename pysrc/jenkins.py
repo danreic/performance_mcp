@@ -17,7 +17,7 @@ class Jenkins:
         response.raise_for_status()
         return response
 
-    def post_request(self, url, params):
+    def post_request(self, url, params=None):
         response = requests.post(url, auth=(self.USERNAME, self.JENKINS_API_TOKEN), data=params)
         response.raise_for_status()
         return response
@@ -109,6 +109,29 @@ class Jenkins:
         jobs.sort(key=lambda job: (job.get('name'), job.get('number')))
         return jobs
 
+    def get_jobs_params(self, job_name, build_number):
+        url = f"{self.JENKINS_URL}:{self.JENKINS_PORT}/job/{job_name}/{build_number}/api/json?tree=actions[parameters[name,value]]"
+        response = self.get_request(url)
+        return response.json()
+
+    def get_running_jobs(self):
+        url = f"{self.JENKINS_URL}:{self.JENKINS_PORT}/computer/api/json?tree=computer[displayName,executors[currentExecutable[*]]]&pretty=true"
+        response = self.get_request(url)
+        jobs = {}
+        for computer in response.json()['computer']:
+            for executor in computer['executors']:
+                if executor['currentExecutable']:
+                    if computer['displayName'] not in jobs:
+                        jobs[computer['displayName']] = []
+                    jobs[computer['displayName']].append(executor['currentExecutable']['url'])
+        return jobs
+
+    def abort_jenkins_job(self, job_name, build_number):
+        url = f"{self.JENKINS_URL}:{self.JENKINS_PORT}/job/{job_name}/{build_number}/stop"
+        response = self.post_request(url)
+        return response
+
+
 
 def extract_test_suite_from_path(path):
     try:
@@ -149,4 +172,3 @@ def validate_run_url(url):
     if not isinstance(url, str):
         return None, "Run URL must be a string."
     return url, "Run URL is valid."
-
