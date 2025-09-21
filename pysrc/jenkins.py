@@ -94,6 +94,21 @@ class Jenkins:
         response = self.post_request(url, params)
         return response
 
+    def get_jobs_from_cluster(self, cluster_label):
+        api_url = f"{self.JENKINS_URL}:{self.JENKINS_PORT}/api/json?tree=jobs[name,builds[number,builtOn,url,result]]"
+        response = self.get_request(api_url)
+        if not response.json()['jobs']:
+            return
+        jobs = []
+        for job in response.json()['jobs']:
+            if job.get('builds'):
+                for build in job.get('builds'):
+                    if build.get('builtOn') == cluster_label:
+                        build['job_name'] = job.get('name')
+                        jobs.append(build)
+        jobs.sort(key=lambda job: (job.get('name'), job.get('number')))
+        return jobs
+
 
 def extract_test_suite_from_path(path):
     try:
