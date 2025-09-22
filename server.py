@@ -334,5 +334,43 @@ def extract_google_sheet_data(
             "error": str(e)
         }
 
+@mcp.tool
+def get_latest_sheet_from_spreadsheet(
+        spreadsheet_id: str,
+        ctx: Context = None
+) -> dict:
+    """
+    Find the latest sheet by creation time in a Google Spreadsheet.
+    
+    Args:
+        spreadsheet_id: The ID of the Google Spreadsheet
+        
+    Returns:
+        Dictionary containing information about the latest sheet and metadata
+        
+    Examples:
+        # Get latest sheet from spreadsheet ID
+        get_latest_sheet_from_spreadsheet("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
+        
+        # Get latest sheet from URL (extract ID first)
+        get_latest_sheet_from_spreadsheet("1S7-Uryb...")
+    """
+    
+    sheets_instance = ctx.request_context.lifespan_context.sheets
+    # Check if GoogleSheetsClient initialization failed
+    if isinstance(sheets_instance, str):
+        return {
+            "success": False,
+            "error": sheets_instance
+        }
+
+    try:
+        return sheets_instance.get_latest_sheet_by_creation_time(spreadsheet_id)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
 if __name__ == "__main__":
     mcp.run()

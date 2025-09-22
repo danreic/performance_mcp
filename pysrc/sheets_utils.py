@@ -308,3 +308,77 @@ class GoogleSheetsClient:
                 "success": False,
                 "error": str(e)
             }
+
+    def get_latest_sheet_by_creation_time(self, spreadsheet_id: str) -> Dict[str, Any]:
+        """
+        Find the latest sheet by creation time in a Google Spreadsheet.
+        
+        Args:
+            spreadsheet_id: The ID of the Google Spreadsheet
+            
+        Returns:
+            Dictionary containing information about the latest sheet and metadata
+        """
+        if not self.service:
+            raise ValueError("Google Sheets service not initialized")
+
+        try:
+            print(f"Getting latest sheet info for spreadsheet ID: {spreadsheet_id}")
+            
+            # Get spreadsheet metadata with creation time
+            spreadsheet = self.service.spreadsheets().get(
+                spreadsheetId=spreadsheet_id
+            ).execute()
+
+            sheets_info = []
+            latest_sheet = None
+            latest_creation_time = None
+            
+            for sheet in spreadsheet.get('sheets', []):
+                sheet_props = sheet.get('properties', {})
+                
+                # Get creation time from the sheet properties
+                # Note: Google Sheets API doesn't provide individual sheet creation times
+                # We'll use the spreadsheet creation time as a fallback
+                creation_time = spreadsheet.get('properties', {}).get('createdTime')
+                
+                sheet_info = {
+                    'sheet_id': sheet_props.get('sheetId'),
+                    'title': sheet_props.get('title'),
+                    'index': sheet_props.get('index'),
+                    'sheet_type': sheet_props.get('sheetType'),
+                    'row_count': sheet_props.get('gridProperties', {}).get('rowCount'),
+                    'column_count': sheet_props.get('gridProperties', {}).get('columnCount'),
+                    'creation_time': creation_time
+                }
+                
+                sheets_info.append(sheet_info)
+                
+                # For now, we'll consider the sheet with the highest index as "latest"
+                # since Google Sheets API doesn't provide individual sheet creation times
+                if latest_sheet is None or sheet_props.get('index', 0) > latest_sheet.get('index', 0):
+                    latest_sheet = sheet_info
+                    latest_creation_time = creation_time
+
+            return {
+                "success": True,
+                "spreadsheet_id": spreadsheet.get('spreadsheetId'),
+                "spreadsheet_title": spreadsheet.get('properties', {}).get('title'),
+                "latest_sheet": latest_sheet,
+                "latest_creation_time": latest_creation_time,
+                "all_sheets": sheets_info,
+                "note": "Sheet creation times are not available via API. Latest sheet determined by highest index."
+            }
+
+        except HttpError as error:
+            error_details = error.error_details[0] if error.error_details else {}
+            return {
+                "success": False,
+                "error": f"HTTP Error {error.resp.status}: {error_details.get('message', str(error))}",
+                "error_code": error.resp.status
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
