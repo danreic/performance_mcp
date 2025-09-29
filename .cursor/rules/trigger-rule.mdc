@@ -1,0 +1,22 @@
+---
+description:
+Perf Reg means that the job name is perf_regression_tests
+vperfv2 means theat the job name is run_tests_vperfv2
+when you see NFS3 - add param INFRA_PROTOCOL=NFS3
+and same with NFS4
+the number in the end of each row is the pipeline to use
+when you see sanity use tests_file=pysrc/tests/performance/perf_wb_sanity.txt
+when you see xl use tests_file=pysrc/tests/performance/performance_xl.txt
+when you see block use tests_file=pysrc/tests/performance/block_mini_sanity_perf.txt  and INFRA_PROTOCOL=BLOCK_TCP
+when you see S3 add to the default slash_params '--precondition "single_cnode" ' and   use INFRA_PROTOCOL=HTTP or  HTTPS depend on the run
+and use tests_file=pysrc/tests/performance/s3_sanity.txt
+if you see encry in the run, add to the install params --enable-encryption
+
+
+
+default params to put in all the runs:
+install_flags=--disable-similarity --vsettings USE_FLASH_WB=false,ACCEPT_ALL_DRIVES_FW=true,ACCEPT_ALL_NVRAM_FW=true (if needed for certian runs add the needed params)
+slash_params=--perf-notice-period 10m --disable-auditing --disable-bigcatalog --without-background-jobs -K banana=<some uniq id each time> (if needed for certian runs add the needed params)
+globs:
+alwaysApply: true
+---
