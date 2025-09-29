@@ -1,3 +1,6 @@
+# Docker build artifacts
+performance-mcp.tar.gz
+
 # Virtual environment directory
 venv/
 .venv/

@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: docker-build
+        name: Docker Build and Export
+        entry: bash -c 'echo "🐳 Building Docker image..." && docker build -t performance_mcp:latest . && echo "📦 Exporting Docker image to tar..." && docker save performance_mcp:latest -o performance-mcp.tar.gz && echo "✅ Docker image built and exported successfully!"'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
