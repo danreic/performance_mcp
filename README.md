@@ -36,7 +36,10 @@ For users who want to use the MCP server with Docker:
 **Option A: Download from GitHub Releases (Recommended)**
 ```bash
 # Download the latest release from GitHub
-curl -L -o performance-mcp.tar.gz https://github.com/danreic/performance_mcp/releases/latest/download/performance-mcp.tar.gz
+curl -L -o performance-mcp.tar.gz https://github.com/danreic/performance_mcp/releases/download/<add latest tag here>/performance-mcp.tar.gz
+
+#check for latest tag, I.E
+curl -L -o performance-mcp.tar.gz https://github.com/danreic/performance_mcp/releases/download/v1.0.0/performance-mcp.tar.gz
 
 # Load the Docker image
 docker load -i performance-mcp.tar.gz
