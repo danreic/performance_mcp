@@ -66,3 +66,15 @@ class PostgresDB:
         else:
             print(f"No data found for Uniq ID: {uniq_id}")
             return None
+
+
+    def fetch_tpcds_data_by_uniq_id(self, uniq_id):
+        job_data = self.fetch_query("select query_name, tabular_duration, hive_duration "
+                                    "from tabular t "
+                                    "where uniq=%s "
+                                    "order by id;" % (uniq_id,))
+        if job_data:
+            return job_data
+        else:
+            print(f"No data found for Uniq ID: {uniq_id}")
+            return None

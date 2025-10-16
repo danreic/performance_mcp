@@ -20,7 +20,7 @@ async def app_lifespan(mcp_Server: FastMCP) -> AsyncIterator[AppResources]:
     db_instance = db_utils.PostgresDB()
     db_instance.connect()
     jenkins_instance = jenkins.Jenkins()
-    
+
     # Initialize GoogleSheetsClient with error handling
     try:
         sheets_instance = sheets_utils.GoogleSheetsClient()
@@ -29,7 +29,7 @@ async def app_lifespan(mcp_Server: FastMCP) -> AsyncIterator[AppResources]:
         print(f"Google Sheets client initialization failed: {e}")
         # Create a dummy object that will help with error reporting
         sheets_instance = f"Google Sheets initialization error: {str(e)}"
-    
+
     yield AppResources(git_tools=git_tools_instance,db=db_instance, jenkins=jenkins_instance, sheets=sheets_instance)
 
     db_instance.close()
@@ -83,6 +83,40 @@ async def get_job_reults_from_url(run_url: str, ctx: Context) -> dict:
             return {"error": "No data found for Uniq ID."}
         else:
             return raw_data
+
+@mcp.tool
+async def get_tpcds_results_from_uniq_id(uniq_id: str, ctx: Context) -> dict:
+    """
+    Gets TPCDS test results from the database using a unique ID
+
+    Args:
+        uniq_id: The unique ID of the TPCDS test run
+
+    Returns:
+        Dictionary containing TPCDS test results with query names, tabular duration, and hive duration
+    """
+    db_instance = ctx.request_context.lifespan_context.db
+    try:
+        raw_data = db_instance.fetch_tpcds_data_by_uniq_id(uniq_id)
+        if raw_data is None:
+            return {"error": f"No TPCDS data found for Uniq ID: {uniq_id}"}
+        else:
+            # Convert the raw data to a more structured format
+            results = []
+            for row in raw_data:
+                results.append({
+                    "query_name": row[0],
+                    "tabular_duration": row[1],
+                    "hive_duration": row[2]
+                })
+            return {
+                "uniq_id": uniq_id,
+                "total_queries": len(results),
+                "results": results
+            }
+    except Exception as e:
+        return {"error": f"Failed to fetch TPCDS data: {str(e)}"}
+
 
 @mcp.tool
 async def get_commit_hash_from_pipeline_id(pipeline_id: int, ctx: Context) -> str:
@@ -162,7 +196,7 @@ def get_result_from_db(commit_hash1: str, commit_hash2: str = None, ctx: Context
     Args:
         commit_hash1: The first commit hash.
         commit_hash2: The  commit hash - Optional
-        
+
     Returns:
         Database results of the requested commits
 
@@ -267,7 +301,7 @@ def get_running_jobs(ctx: Context = None) -> dict:
 @mcp.tool
 def abort_jenkins_job(job_name: str, build_number: str, ctx: Context = None) -> str:
     """
-    Aborts a job in jenkins 
+    Aborts a job in jenkins
     Args:
         job_name: The name of the job to abort.
         build_number: The number of the build to abort.
@@ -280,7 +314,7 @@ def abort_jenkins_job(job_name: str, build_number: str, ctx: Context = None) -> 
     if response.ok:
         return "Job aborted successfully"
     else:
-        return f"Failed to abort job: {response.status_code} {response.text}"   
+        return f"Failed to abort job: {response.status_code} {response.text}"
 
 @mcp.tool
 def extract_google_sheet_data(
@@ -341,21 +375,21 @@ def get_latest_sheet_from_spreadsheet(
 ) -> dict:
     """
     Find the latest sheet by creation time in a Google Spreadsheet.
-    
+
     Args:
         spreadsheet_id: The ID of the Google Spreadsheet
-        
+
     Returns:
         Dictionary containing information about the latest sheet and metadata
-        
+
     Examples:
         # Get latest sheet from spreadsheet ID
         get_latest_sheet_from_spreadsheet("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
-        
+
         # Get latest sheet from URL (extract ID first)
         get_latest_sheet_from_spreadsheet("1S7-Uryb...")
     """
-    
+
     sheets_instance = ctx.request_context.lifespan_context.sheets
     # Check if GoogleSheetsClient initialization failed
     if isinstance(sheets_instance, str):
@@ -370,6 +404,120 @@ def get_latest_sheet_from_spreadsheet(
         return {
             "success": False,
             "error": str(e)
+        }
+
+@mcp.tool
+def duplicate_and_update_performance_sheet(
+    source_spreadsheet_url: str,
+    source_sheet_name: str,
+    new_sheet_name: str,
+    updated_performance_data: str = None,
+    update_range: str = "A1",
+    ctx: Context = None
+) -> dict:
+    """
+    Duplicates a Google Sheets tab containing performance results and optionally updates it with new data.
+
+    This tool is useful for creating backups before updating results or comparing different performance runs.
+
+    Args:
+        source_spreadsheet_url: URL of the Google Spreadsheet containing the source sheet
+        source_sheet_name: Name of the sheet tab to duplicate
+        new_sheet_name: Name for the new duplicated sheet tab
+        updated_performance_data: Optional JSON string of new performance data as 2D array
+        update_range: Cell range for updates. Can be exact range (e.g., "B6:C104") or starting cell (e.g., "A1")
+
+    Returns:
+        Dictionary containing the results of the duplication and update operation
+
+    Examples:
+        # Just duplicate a sheet
+        duplicate_and_update_performance_sheet(
+            "https://docs.google.com/spreadsheets/d/1ABC.../edit",
+            "Performance Results Dec 2024",
+            "Performance Results Dec 2024 - Backup"
+        )
+
+        # Duplicate and update with new data
+        duplicate_and_update_performance_sheet(
+            "https://docs.google.com/spreadsheets/d/1ABC.../edit",
+            "Performance Results Dec 2024",
+            "Performance Results Dec 2024 - Updated",
+            '[["Test", "Result"], ["Test1", "PASS"], ["Test2", "FAIL"]]'
+        )
+
+        # Duplicate and update specific range
+        duplicate_and_update_performance_sheet(
+            "https://docs.google.com/spreadsheets/d/1ABC.../edit",
+            "Performance Results Dec 2024",
+            "Performance Results Dec 2024 - B6:C104 Updated",
+            '[["5.921", "6.327"], ["7.997", "6.488"]]',
+            "B6:C104"
+        )
+    """
+    print(f"DEBUG: MCP function called with ctx={ctx}")
+
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not provided"
+        }
+
+    print(f"DEBUG: Getting sheets instance...")
+    sheets_instance = ctx.request_context.lifespan_context.sheets
+    print(f"DEBUG: sheets_instance = {type(sheets_instance)}")
+
+    # Check if GoogleSheetsClient initialization failed
+    if isinstance(sheets_instance, str):
+        return {
+            "success": False,
+            "error": sheets_instance
+        }
+
+    try:
+        print(f"DEBUG: Starting MCP function")
+        print(f"DEBUG: source_spreadsheet_url = {source_spreadsheet_url}")
+
+        # Parse the spreadsheet URL to get ID
+        print(f"DEBUG: Parsing sheets URL...")
+        spreadsheet_id, _ = sheets_instance.parse_sheets_url(source_spreadsheet_url)
+        print(f"DEBUG: Parsed spreadsheet_id = {spreadsheet_id}")
+
+        # Parse the updated data if provided
+        parsed_data = None
+        if updated_performance_data:
+            import json
+            try:
+                parsed_data = json.loads(updated_performance_data)
+                if not isinstance(parsed_data, list):
+                    return {
+                        "success": False,
+                        "error": "updated_performance_data must be a JSON array of arrays (2D array)"
+                    }
+            except json.JSONDecodeError as e:
+                return {
+                    "success": False,
+                    "error": f"Invalid JSON format for updated_performance_data: {str(e)}"
+                }
+
+        # Call the duplicate and update method
+        print(f"DEBUG: Calling duplicate_and_update_performance_sheet...")
+        print(f"DEBUG: Parameters - spreadsheet_id={spreadsheet_id}, source_sheet_name={source_sheet_name}, new_sheet_name={new_sheet_name}")
+        result = sheets_instance.duplicate_and_update_performance_sheet(
+            spreadsheet_id,
+            source_sheet_name,
+            new_sheet_name,
+            parsed_data,
+            update_range
+        )
+        print(f"DEBUG: Result = {result}")
+
+        return result
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to duplicate and update sheet: {str(e)}"
         }
 
 if __name__ == "__main__":

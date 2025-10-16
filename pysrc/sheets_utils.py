@@ -18,7 +18,7 @@ class GoogleSheetsClient:
     Supports both OAuth2 and service account authentication methods.
     """
 
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
     def __init__(self):
         """
@@ -76,42 +76,42 @@ class GoogleSheetsClient:
     def parse_sheets_url(self, url: str) -> Tuple[str, Optional[str]]:
         """
         Parse a Google Sheets URL to extract spreadsheet ID and sheet GID.
-        
+
         Args:
             url: Google Sheets URL (e.g., https://docs.google.com/spreadsheets/d/ID/edit#gid=123)
-            
+
         Returns:
             Tuple of (spreadsheet_id, sheet_gid) where sheet_gid may be None
-            
+
         Raises:
             ValueError: If URL format is invalid
         """
         # Extract spreadsheet ID using regex
         spreadsheet_pattern = r'/spreadsheets/d/([a-zA-Z0-9-_]+)'
         match = re.search(spreadsheet_pattern, url)
-        
+
         if not match:
             raise ValueError(f"Invalid Google Sheets URL. Cannot extract spreadsheet ID from: {url}")
-        
+
         spreadsheet_id = match.group(1)
-        
+
         # Extract sheet GID from URL fragment (after #)
         sheet_gid = None
         if '#gid=' in url:
             gid_match = re.search(r'#gid=(\d+)', url)
             if gid_match:
                 sheet_gid = gid_match.group(1)
-        
+
         return spreadsheet_id, sheet_gid
 
     def get_sheet_name_from_gid(self, spreadsheet_id: str, sheet_gid: str) -> Optional[str]:
         """
         Get sheet name from sheet GID using Google Sheets API.
-        
+
         Args:
             spreadsheet_id: The spreadsheet ID
             sheet_gid: The sheet GID (numeric ID)
-            
+
         Returns:
             Sheet name or None if not found
         """
@@ -120,15 +120,15 @@ class GoogleSheetsClient:
             spreadsheet = self.service.spreadsheets().get(
                 spreadsheetId=spreadsheet_id
             ).execute()
-            
+
             # Find sheet with matching GID
             for sheet in spreadsheet.get('sheets', []):
                 sheet_props = sheet.get('properties', {})
                 if str(sheet_props.get('sheetId', '')) == str(sheet_gid):
                     return sheet_props.get('title')
-            
+
             return None
-            
+
         except HttpError as e:
             print(f"Error getting sheet name from GID: {e}")
             return None
@@ -140,14 +140,14 @@ class GoogleSheetsClient:
     ) -> Dict[str, Any]:
         """
         Extract data from a Google Sheet using a complete URL (including specific sheet tab).
-        
+
         Args:
             url: Complete Google Sheets URL with sheet tab (e.g., https://docs.google.com/spreadsheets/d/ID/edit#gid=123)
             range_name: Cell range to extract (default: "A:Z")
-            
+
         Returns:
             Dictionary containing extracted data with headers, rows, and metadata
-            
+
         Examples:
             # Extract data from specific sheet tab via URL
             extract_sheet_data_from_url("https://docs.google.com/spreadsheets/d/1S7-Uryb.../edit#gid=123456")
@@ -157,16 +157,16 @@ class GoogleSheetsClient:
             spreadsheet_id, sheet_gid = self.parse_sheets_url(url)
             print(f"Extracted spreadsheet ID: {spreadsheet_id}")
             print(f"Extracted sheet GID: {sheet_gid}")
-            
+
             # Get sheet name from GID if available
             sheet_name = None
             if sheet_gid:
                 sheet_name = self.get_sheet_name_from_gid(spreadsheet_id, sheet_gid)
                 print(f"Sheet name for GID {sheet_gid}: {sheet_name}")
-            
+
             # Use existing extract_sheet_data method
             return self.extract_sheet_data(spreadsheet_id, range_name, sheet_name)
-            
+
         except Exception as e:
             return {
                 "success": False,
@@ -229,7 +229,7 @@ class GoogleSheetsClient:
         except HttpError as error:
             error_details = error.error_details[0] if error.error_details else {}
             error_message = error_details.get('message', str(error))
-            
+
             # Provide specific help for permission errors
             if error.resp.status == 403:
                 permission_help = (
@@ -244,7 +244,7 @@ class GoogleSheetsClient:
                     f"5. Click 'Send'"
                 )
                 error_message += permission_help
-            
+
             return {
                 "success": False,
                 "error": f"HTTP Error {error.resp.status}: {error_message}",
@@ -312,10 +312,10 @@ class GoogleSheetsClient:
     def get_latest_sheet_by_creation_time(self, spreadsheet_id: str) -> Dict[str, Any]:
         """
         Find the latest sheet by creation time in a Google Spreadsheet.
-        
+
         Args:
             spreadsheet_id: The ID of the Google Spreadsheet
-            
+
         Returns:
             Dictionary containing information about the latest sheet and metadata
         """
@@ -324,7 +324,7 @@ class GoogleSheetsClient:
 
         try:
             print(f"Getting latest sheet info for spreadsheet ID: {spreadsheet_id}")
-            
+
             # Get spreadsheet metadata with creation time
             spreadsheet = self.service.spreadsheets().get(
                 spreadsheetId=spreadsheet_id
@@ -333,15 +333,15 @@ class GoogleSheetsClient:
             sheets_info = []
             latest_sheet = None
             latest_creation_time = None
-            
+
             for sheet in spreadsheet.get('sheets', []):
                 sheet_props = sheet.get('properties', {})
-                
+
                 # Get creation time from the sheet properties
                 # Note: Google Sheets API doesn't provide individual sheet creation times
                 # We'll use the spreadsheet creation time as a fallback
                 creation_time = spreadsheet.get('properties', {}).get('createdTime')
-                
+
                 sheet_info = {
                     'sheet_id': sheet_props.get('sheetId'),
                     'title': sheet_props.get('title'),
@@ -351,9 +351,9 @@ class GoogleSheetsClient:
                     'column_count': sheet_props.get('gridProperties', {}).get('columnCount'),
                     'creation_time': creation_time
                 }
-                
+
                 sheets_info.append(sheet_info)
-                
+
                 # For now, we'll consider the sheet with the highest index as "latest"
                 # since Google Sheets API doesn't provide individual sheet creation times
                 if latest_sheet is None or sheet_props.get('index', 0) > latest_sheet.get('index', 0):
@@ -381,4 +381,225 @@ class GoogleSheetsClient:
             return {
                 "success": False,
                 "error": str(e)
+            }
+
+    def duplicate_sheet(
+        self,
+        spreadsheet_id: str,
+        source_sheet_id: int,
+        new_sheet_name: str
+    ) -> Dict[str, Any]:
+        """
+        Duplicate an existing sheet to a new sheet in the same spreadsheet.
+
+        Args:
+            spreadsheet_id: The ID of the Google Spreadsheet
+            source_sheet_id: The ID of the sheet to duplicate
+            new_sheet_name: Name for the new duplicated sheet
+
+        Returns:
+            Dictionary containing information about the newly created sheet
+        """
+        if not self.service:
+            raise ValueError("Google Sheets service not initialized")
+
+        try:
+            print(f"Duplicating sheet {source_sheet_id} to new sheet '{new_sheet_name}'")
+
+            request = {
+                "duplicateSheet": {
+                    "sourceSheetId": source_sheet_id,
+                    "newSheetName": new_sheet_name
+                }
+            }
+
+            response = self.service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [request]}
+            ).execute()
+
+            new_sheet_props = response['replies'][0]['duplicateSheet']['properties']
+
+            return {
+                "success": True,
+                "new_sheet_id": new_sheet_props['sheetId'],
+                "new_sheet_name": new_sheet_props['title'],
+                "spreadsheet_id": spreadsheet_id,
+                "message": f"Successfully duplicated sheet to '{new_sheet_name}'"
+            }
+
+        except HttpError as error:
+            error_details = error.error_details[0] if error.error_details else {}
+            return {
+                "success": False,
+                "error": f"HTTP Error {error.resp.status}: {error_details.get('message', str(error))}",
+                "error_code": error.resp.status
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def update_sheet_data(
+        self,
+        spreadsheet_id: str,
+        sheet_name: str,
+        data: List[List[str]],
+        range_name: str = "A1",
+        exact_range: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Update data in a Google Sheet.
+
+        Args:
+            spreadsheet_id: The ID of the Google Spreadsheet
+            sheet_name: Name of the sheet to update
+            data: 2D list of values to write
+            range_name: Cell range specification. Can be:
+                       - Starting cell (e.g., "A1") when exact_range=False
+                       - Exact range (e.g., "B6:C104") when exact_range=True
+                       - Auto-detected if range contains ":" character
+            exact_range: If True, treats range_name as exact range.
+                        If False, treats range_name as starting point.
+                        Auto-detected if range_name contains ":"
+
+        Returns:
+            Dictionary containing update results
+        """
+        if not self.service:
+            raise ValueError("Google Sheets service not initialized")
+
+        try:
+            # Auto-detect exact range if ":" is present in range_name
+            is_exact_range = exact_range or ":" in range_name
+
+            if is_exact_range:
+                # Use the exact range as specified
+                full_range = f"{sheet_name}!{range_name}"
+                print(f"Updating exact range '{full_range}' in sheet '{sheet_name}'")
+            else:
+                # Use range_name as starting point (original behavior)
+                full_range = f"{sheet_name}!{range_name}"
+                print(f"Updating data in sheet '{sheet_name}' starting at {range_name}")
+
+            body = {'values': data}
+
+            response = self.service.spreadsheets().values().update(
+                spreadsheetId=spreadsheet_id,
+                range=full_range,
+                valueInputOption="USER_ENTERED",
+                body=body
+            ).execute()
+
+            return {
+                "success": True,
+                "updated_cells": response.get('updatedCells', 0),
+                "updated_rows": response.get('updatedRows', 0),
+                "updated_columns": response.get('updatedColumns', 0),
+                "spreadsheet_id": spreadsheet_id,
+                "range": full_range,
+                "exact_range": is_exact_range,
+                "message": f"Successfully updated {response.get('updatedCells', 0)} cells"
+            }
+
+        except HttpError as error:
+            error_details = error.error_details[0] if error.error_details else {}
+            return {
+                "success": False,
+                "error": f"HTTP Error {error.resp.status}: {error_details.get('message', str(error))}",
+                "error_code": error.resp.status
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    def duplicate_and_update_performance_sheet(
+        self,
+        spreadsheet_id: str,
+        source_sheet_name: str,
+        new_sheet_name: str,
+        updated_data: Optional[List[List[str]]] = None,
+        update_range: str = "A1"
+    ) -> Dict[str, Any]:
+        """
+        Duplicate a sheet and optionally update it with new performance results.
+
+        Args:
+            spreadsheet_id: The ID of the Google Spreadsheet
+            source_sheet_name: Name of the sheet to duplicate
+            new_sheet_name: Name for the new duplicated sheet
+            updated_data: Optional new data to write to the duplicated sheet
+            update_range: Starting cell range for updates (default: "A1")
+
+        Returns:
+            Dictionary containing duplication and update results
+        """
+        try:
+            print(f"DEBUG: Starting duplicate_and_update_performance_sheet")
+            print(f"DEBUG: spreadsheet_id = {spreadsheet_id}")
+
+            # First, get the source sheet ID
+            print(f"DEBUG: Getting sheet info...")
+            sheet_info = self.get_sheet_info(spreadsheet_id)
+            print(f"DEBUG: Sheet info result = {sheet_info}")
+            if not sheet_info.get("success"):
+                return sheet_info
+
+            source_sheet_id = None
+            for sheet in sheet_info.get("sheets", []):
+                if sheet["title"] == source_sheet_name:
+                    source_sheet_id = sheet["sheet_id"]
+                    break
+
+            if source_sheet_id is None:
+                return {
+                    "success": False,
+                    "error": f"Source sheet '{source_sheet_name}' not found"
+                }
+
+            # Duplicate the sheet
+            duplicate_result = self.duplicate_sheet(
+                spreadsheet_id,
+                source_sheet_id,
+                new_sheet_name
+            )
+
+            if not duplicate_result.get("success"):
+                return duplicate_result
+
+            result = {
+                "success": True,
+                "duplicated_sheet": duplicate_result,
+                "spreadsheet_id": spreadsheet_id,
+                "source_sheet": source_sheet_name,
+                "new_sheet_name": new_sheet_name
+            }
+
+            # Update with new data if provided
+            if updated_data:
+                update_result = self.update_sheet_data(
+                    spreadsheet_id,
+                    new_sheet_name,
+                    updated_data,
+                    update_range
+                )
+                result["updated_data"] = update_result
+
+                if update_result.get("success"):
+                    result["message"] = f"Successfully duplicated '{source_sheet_name}' to '{new_sheet_name}' and updated {update_result.get('updated_cells', 0)} cells"
+                else:
+                    result["message"] = f"Sheet duplicated successfully, but data update failed: {update_result.get('error')}"
+                    result["success"] = False
+            else:
+                result["message"] = f"Successfully duplicated '{source_sheet_name}' to '{new_sheet_name}'"
+
+            return result
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to duplicate and update sheet: {str(e)}"
             }
